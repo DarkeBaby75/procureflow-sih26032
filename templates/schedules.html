@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Procurement schedules · ProcureFlow{% endblock %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">Open procurement</span><h1>Find a schedule</h1><p>Filter by district or commodity, then reserve a token.</p></div></div>
+<form class="filter-bar" method="get">
+  <label>District<select name="district"><option value="">All districts</option>{% for d in districts %}<option {% if request.args.get('district')==d.district %}selected{% endif %}>{{ d.district }}</option>{% endfor %}</select></label>
+  <label>Commodity<select name="commodity"><option value="">All commodities</option>{% for c in commodities %}<option {% if request.args.get('commodity')==c.name %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></label>
+  <button class="button dark" type="submit">Apply filters</button><a class="button ghost" href="{{ url_for('schedules') }}">Reset</a>
+</form>
+<div class="table-card desktop-table"><table><thead><tr><th>Date & time</th><th>Commodity</th><th>Procurement centre</th><th>Availability</th><th></th></tr></thead><tbody>
+{% for item in schedules %}<tr><td><strong>{{ item.procurement_date|pretty_date }}</strong><small>{{ item.start_time }}–{{ item.end_time }}</small></td><td><strong>{{ item.commodity_name }}</strong><small>{{ item.min_quantity|number }}–{{ item.max_quantity|number }} quintals</small></td><td><strong>{{ item.centre_name }}</strong><small>{{ item.address }}</small></td><td><div class="capacity"><span style="width:{{ ((item.booked/item.capacity)*100)|round if item.capacity else 0 }}%"></span></div><small>{{ item.capacity-item.booked }} of {{ item.capacity }} slots left</small></td><td><a class="button primary compact" href="{{ url_for('book', schedule_id=item.id) }}">Select</a></td></tr>{% else %}<tr><td colspan="5" class="empty-inline">No matching schedules are currently open.</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

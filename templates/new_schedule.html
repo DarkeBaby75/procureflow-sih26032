@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}New schedule · ProcureFlow{% endblock %}
+{% block content %}
+<div class="page-heading"><div><a class="back-link" href="{{ url_for('admin_dashboard') }}">← Administration</a><span class="eyebrow">Schedule management</span><h1>Create procurement schedule</h1><p>Publish a capacity-controlled booking window.</p></div></div>
+<form method="post" class="card form-card narrow-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><div class="form-grid"><label>Procurement centre<select name="centre_id" required>{% for item in centres %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}</select></label><label>Commodity<select name="commodity_id" required>{% for item in commodities %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}</select></label><label>Date<input type="date" name="procurement_date" min="{{ today }}" required></label><label>Capacity<input type="number" name="capacity" min="1" max="500" value="30" required></label><label>Start time<input type="time" name="start_time" value="09:00" required></label><label>End time<input type="time" name="end_time" value="14:00" required></label><label>Minutes per token<input type="number" name="slot_minutes" min="1" max="60" value="10" required></label></div><button class="button primary" type="submit">Publish schedule</button></form>
+{% endblock %}
+

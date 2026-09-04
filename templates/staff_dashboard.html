@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Centre operations · ProcureFlow{% endblock %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">Centre operations</span><h1>Today’s queues</h1><p>Check farmers in and keep each procurement line moving.</p></div></div>
+<div class="schedule-grid">
+{% for item in schedules %}<article class="schedule-card ops-card"><div class="schedule-content"><div class="card-title-row"><h3>{{ item.commodity_name }}</h3><span class="pill">{{ item.procurement_date|pretty_date }}</span></div><p>{{ item.centre_name }}</p><div class="mini-stats"><span><strong>{{ item.total_bookings or 0 }}</strong>Total</span><span><strong>{{ item.waiting or 0 }}</strong>Waiting</span><span><strong>{{ item.completed or 0 }}</strong>Done</span></div><a class="button primary full" href="{{ url_for('staff_queue', schedule_id=item.id) }}">Open queue</a></div></article>{% else %}<div class="empty-card"><div><h2>No active schedules</h2><p>Your assigned centre has no upcoming queue.</p></div></div>{% endfor %}
+</div>
+{% endblock %}
+

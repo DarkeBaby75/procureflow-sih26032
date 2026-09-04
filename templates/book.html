@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Check eligibility · ProcureFlow{% endblock %}
+{% block content %}
+<div class="page-heading"><div><a class="back-link" href="{{ url_for('schedules') }}">← Back to schedules</a><span class="eyebrow">Eligibility check</span><h1>{{ schedule.commodity_name }} procurement</h1><p>{{ schedule.centre_name }} · {{ schedule.procurement_date|pretty_date }}</p></div></div>
+<div class="split-layout">
+  <form method="post" class="card form-card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <h2>Confirm your details</h2><p class="muted">These declarations are checked before a token is issued.</p>
+    <label>Quantity to procure (quintals)<input type="number" name="quantity" min="{{ schedule.min_quantity }}" max="{{ schedule.max_quantity }}" step="0.1" required><small>Accepted range: {{ schedule.min_quantity|number }}–{{ schedule.max_quantity|number }} quintals</small></label>
+    <div class="check-list">
+      <label><input type="checkbox" name="identity" value="yes" required><span><b>Government identity is available</b><small>I can show a valid identity document at the centre.</small></span></label>
+      <label><input type="checkbox" name="bank" value="yes" required><span><b>Bank account is verified</b><small>Account and IFSC details belong to the registered farmer.</small></span></label>
+      <label><input type="checkbox" name="land" value="yes" required><span><b>Land or tenancy record is available</b><small>I have supporting cultivation/tenancy documentation.</small></span></label>
+      <label><input type="checkbox" name="produce" value="yes" required><span><b>Produce meets the declared commodity</b><small>The lot is {{ schedule.commodity_name }} and ready for inspection.</small></span></label>
+    </div>
+    <button class="button primary full" type="submit">Confirm and book token</button>
+  </form>
+  <aside class="card detail-card"><span class="pill green">Open</span><h2>Visit details</h2><dl><div><dt>Date</dt><dd>{{ schedule.procurement_date|pretty_date }}</dd></div><div><dt>Time window</dt><dd>{{ schedule.start_time }}–{{ schedule.end_time }}</dd></div><div><dt>Centre</dt><dd>{{ schedule.centre_name }}</dd></div><div><dt>Address</dt><dd>{{ schedule.address }}, {{ schedule.district }}</dd></div><div><dt>Documents</dt><dd>{{ schedule.required_docs }}</dd></div></dl><p class="notice"><b>Prototype eligibility:</b> Final acceptance remains subject to physical verification and applicable procurement rules.</p></aside>
+</div>
+{% endblock %}

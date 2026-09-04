@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Sign in · ProcureFlow{% endblock %}
+{% block content %}
+<section class="auth-layout">
+  <div class="auth-story">
+    <div class="brand auth-brand"><span class="brand-mark">PF</span><span><strong>ProcureFlow</strong><small>खरेदी सुविधा</small></span></div>
+    <h1>Your mandi visit,<br><em>planned before you leave.</em></h1>
+    <p>Check procurement schedules, confirm eligibility, book a token and follow your queue from one place.</p>
+    <div class="journey" aria-label="Procurement journey">
+      <span>Check</span><i></i><span>Book</span><i></i><span>Track</span><i></i><span>Procure</span>
+    </div>
+  </div>
+  <div class="auth-panel">
+    <div class="card login-card">
+      <span class="eyebrow">Secure access</span>
+      <h2>Sign in to continue</h2>
+      <p class="muted">Use one of the demonstration accounts below.</p>
+      <form method="post" class="form-stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Email address<input type="email" name="email" placeholder="name@example.com" required autofocus></label>
+        <label>Password<input type="password" name="password" placeholder="Enter password" required></label>
+        <button class="button primary full" type="submit">Sign in</button>
+      </form>
+      <div class="demo-accounts">
+        <button type="button" data-fill-email="farmer@demo.in" data-fill-password="Farmer@123"><b>Farmer</b><span>farmer@demo.in</span></button>
+        <button type="button" data-fill-email="staff@demo.in" data-fill-password="Staff@123"><b>Centre staff</b><span>staff@demo.in</span></button>
+        <button type="button" data-fill-email="admin@demo.in" data-fill-password="Admin@123"><b>Administrator</b><span>admin@demo.in</span></button>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+

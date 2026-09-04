@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Token {{ booking.token_number }} · ProcureFlow{% endblock %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">Procurement token</span><h1>{{ booking.token_number }}</h1><p>Keep this number ready at the centre.</p></div><span class="large-status {{ booking.status }}">{{ booking.status.replace('_',' ')|title }}</span></div>
+<div class="token-layout">
+  <section class="queue-card">
+    <div class="queue-ring"><strong>{{ queue.ahead }}</strong><span>tokens ahead</span></div>
+    <div><span class="eyebrow">Estimated wait</span><h2>{% if booking.status == 'serving' %}Now serving{% elif booking.status == 'completed' %}Completed{% else %}About {{ queue.estimated_wait }} minutes{% endif %}</h2><p>The estimate updates as centre staff progress the queue.</p></div>
+  </section>
+  <section class="card detail-card"><h2>Token details</h2><dl><div><dt>Farmer</dt><dd>{{ booking.farmer_name }}</dd></div><div><dt>Commodity</dt><dd>{{ booking.commodity_name }} · {{ booking.quantity|number }} quintals</dd></div><div><dt>Date and time</dt><dd>{{ booking.procurement_date|pretty_date }}, {{ booking.start_time }}–{{ booking.end_time }}</dd></div><div><dt>Centre</dt><dd>{{ booking.centre_name }}</dd></div><div><dt>Queue position</dt><dd>#{{ booking.queue_position }}</dd></div></dl></section>
+</div>
+<div class="timeline"><div class="done"><b>1</b><span>Eligible</span></div><i></i><div class="{% if booking.status != 'booked' %}done{% endif %}"><b>2</b><span>Checked in</span></div><i></i><div class="{% if booking.status in ('serving','completed') %}done{% endif %}"><b>3</b><span>Serving</span></div><i></i><div class="{% if booking.status == 'completed' %}done{% endif %}"><b>4</b><span>Completed</span></div></div>
+{% if current_user.role == 'farmer' and booking.status in ('booked','checked_in') %}<form method="post" action="{{ url_for('cancel_booking', booking_id=booking.id) }}" class="right-action" data-confirm="Cancel this token and release the slot?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button danger-outline" type="submit">Cancel token</button></form>{% endif %}
+{% endblock %}

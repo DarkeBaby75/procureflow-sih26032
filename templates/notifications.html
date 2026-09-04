@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Messages · ProcureFlow{% endblock %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">Notification centre</span><h1>Messages</h1><p>Booking confirmations, reminders and queue updates.</p></div></div>
+<div class="message-list">{% for item in notifications %}<div class="message-item"><span class="message-icon">{% if item.delivery_status == 'sent' %}✓{% else %}↗{% endif %}</span><div><strong>{{ item.subject }}</strong><p>{{ item.message }}</p><small>{% if current_user.role == 'admin' %}{{ item.recipient_name }} · {{ item.recipient_email }} · {% endif %}{{ item.channel|upper }} · {{ item.delivery_status|title }}{% if item.error_message %} · {{ item.error_message }}{% endif %}</small></div><time>{{ item.created_at|pretty_time }}</time>{% if current_user.role == 'admin' and item.delivery_status != 'sent' %}<form method="post" action="{{ url_for('retry_notification', notification_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button ghost compact">Retry</button></form>{% endif %}</div>{% else %}<div class="empty-card"><div><h2>No messages yet</h2><p>System notifications will appear here.</p></div></div>{% endfor %}</div>
+{% endblock %}

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="{{ language }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Farmer procurement scheduling, token and queue management">
+  <title>{% block title %}ProcureFlow{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body>
+  {% if current_user %}
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('index') }}" aria-label="ProcureFlow home">
+      <span class="brand-mark">PF</span>
+      <span><strong>ProcureFlow</strong><small>खरेदी सुविधा</small></span>
+    </a>
+    <nav class="nav" aria-label="Primary navigation">
+      {% if current_user.role == 'farmer' %}
+        <a href="{{ url_for('farmer_dashboard') }}">Overview</a>
+        <a href="{{ url_for('schedules') }}">Schedules</a>
+      {% elif current_user.role == 'staff' %}
+        <a href="{{ url_for('staff_dashboard') }}">Centre queue</a>
+      {% else %}
+        <a href="{{ url_for('admin_dashboard') }}">Administration</a>
+        <a href="{{ url_for('new_schedule') }}">New schedule</a>
+      {% endif %}
+      <a href="{{ url_for('notifications') }}">Messages</a>
+    </nav>
+    <div class="user-menu">
+      <form class="language-form" method="post" data-language-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+        <label class="sr-only" for="language-select">Language</label>
+        <select id="language-select" aria-label="Language" data-language-select>
+          {% for code, label in languages.items() %}<option value="{{ code }}" {% if language == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </form>
+      <span><strong>{{ current_user.name }}</strong><small>{{ current_user.role|title }}</small></span>
+      <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="button ghost compact" type="submit">Sign out</button>
+      </form>
+    </div>
+  </header>
+  {% else %}
+    <form class="language-form floating-language" method="post" data-language-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <label class="sr-only" for="language-select">Language</label>
+      <select id="language-select" aria-label="Language" data-language-select>
+        {% for code, label in languages.items() %}<option value="{{ code }}" {% if language == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </form>
+  {% endif %}
+
+  <main class="{% if not current_user %}auth-main{% else %}shell{% endif %}">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-stack" aria-live="polite">
+          {% for category, message in messages %}
+            <div class="flash {{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  <script>window.PROCUREFLOW_LANGUAGE={{ language|tojson }};</script>
+  <script src="{{ url_for('static', filename='i18n.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>

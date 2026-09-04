@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Administration · ProcureFlow{% endblock %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">System administration</span><h1>Procurement overview</h1><p>Manage schedules and monitor system activity.</p></div><a class="button primary" href="{{ url_for('new_schedule') }}">Create schedule</a></div>
+<div class="metrics">{% for label,value in [('Registered farmers',metrics.farmers),('Open schedules',metrics.open_schedules),('Active tokens',metrics.active_tokens),('Completed visits',metrics.completed)] %}<div class="metric"><span>{{ label }}</span><strong>{{ value }}</strong></div>{% endfor %}</div>
+<div class="section-heading"><div><h2>All schedules</h2><p>Capacity and booking status</p></div></div>
+<div class="table-card"><table><thead><tr><th>Date</th><th>Commodity</th><th>Centre</th><th>Tokens</th><th>Status</th><th></th></tr></thead><tbody>{% for item in schedules %}<tr><td><strong>{{ item.procurement_date|pretty_date }}</strong><small>{{ item.start_time }}–{{ item.end_time }}</small></td><td>{{ item.commodity_name }}</td><td>{{ item.centre_name }}</td><td>{{ item.booked }} / {{ item.capacity }}</td><td><span class="large-status {{ item.status }}">{{ item.status|title }}</span></td><td><form method="post" action="{{ url_for('toggle_schedule', schedule_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button ghost compact">{% if item.status == 'open' %}Close{% else %}Reopen{% endif %}</button></form></td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}
+
