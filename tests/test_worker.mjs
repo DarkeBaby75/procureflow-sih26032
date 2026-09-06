@@ -25,6 +25,14 @@ test('serves the custom alert composer', async () => {
   assert.match(await response.text(), /custom-alert-message/);
 });
 
+test('keeps eligibility checkboxes compact and aligned', async () => {
+  const response = await worker.fetch(new Request('https://procureflow.example/app.css'), env);
+  assert.equal(response.status, 200);
+  const css = await response.text();
+  assert.match(css, /\.check-list input\[type=checkbox\]\{[^}]*width:20px!important[^}]*height:20px!important/);
+  assert.match(css, /\.check-list label\{[^}]*grid-template-columns:20px minmax\(0,1fr\)/);
+});
+
 test('serves complete dynamic Hindi and Marathi translation support', async () => {
   const response = await worker.fetch(new Request('https://procureflow.example/i18n.js'), env);
   const script = await response.text();
