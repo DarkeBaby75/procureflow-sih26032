@@ -2,6 +2,8 @@
 
 ProcureFlow is a Python/Flask application for farmer procurement scheduling, rule-based eligibility checks, token booking, queue tracking, centre operations, and automated email updates.
 
+**Live demo:** https://procureflow-sih26032.abbaszaga04.chatgpt.site
+
 ## Included workflows
 
 - Farmer: sign in, view schedules, check eligibility, book/cancel token, track queue and read messages.
@@ -16,7 +18,8 @@ ProcureFlow is a Python/Flask application for farmer procurement scheduling, rul
 ## Start on Windows
 
 ```powershell
-cd "C:\Users\Sadik\Documents\Codex\2026-09-03\giv\outputs\procureflow"
+git clone https://github.com/DarkeBaby75/procureflow-sih26032.git
+cd procureflow-sih26032
 .\setup_and_run.ps1
 ```
 
