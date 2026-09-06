@@ -70,7 +70,7 @@ export default {
     return new Response(request.method === 'HEAD' ? null : body, {
       headers: {
         'Content-Type': contentType(key),
-        'Cache-Control': key === '/' ? 'no-cache' : 'public, max-age=3600',
+        'Cache-Control': 'no-cache',
       },
     });
   },
