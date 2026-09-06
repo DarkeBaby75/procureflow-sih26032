@@ -1,0 +1,10 @@
+{
+  "name": "procureflow-hosted",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-hosted.mjs",
+    "test:worker": "node --test tests/test_worker.mjs"
+  }
+}
