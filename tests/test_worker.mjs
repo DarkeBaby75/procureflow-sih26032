@@ -17,6 +17,12 @@ test('serves the ProcureFlow application', async () => {
   assert.match(await response.text(), /ProcureFlow/);
 });
 
+test('serves the custom alert composer', async () => {
+  const response = await worker.fetch(new Request('https://procureflow.example/hosted.js'), env);
+  assert.equal(response.status, 200);
+  assert.match(await response.text(), /custom-alert-message/);
+});
+
 test('blocks a foreign browser origin', async () => {
   const response = await worker.fetch(new Request('https://procureflow.example/api/send-sms', {
     method: 'POST',
