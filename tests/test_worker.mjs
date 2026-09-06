@@ -14,7 +14,9 @@ const env = {
 test('serves the ProcureFlow application', async () => {
   const response = await worker.fetch(new Request('https://procureflow.example/'), env);
   assert.equal(response.status, 200);
-  assert.match(await response.text(), /ProcureFlow/);
+  const html = await response.text();
+  assert.match(html, /ProcureFlow/);
+  assert.doesNotMatch(html, /voice-button|🔊/);
 });
 
 test('serves the custom alert composer', async () => {
