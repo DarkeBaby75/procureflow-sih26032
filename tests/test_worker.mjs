@@ -25,6 +25,15 @@ test('serves the custom alert composer', async () => {
   assert.match(await response.text(), /custom-alert-message/);
 });
 
+test('serves complete dynamic Hindi and Marathi translation support', async () => {
+  const response = await worker.fetch(new Request('https://procureflow.example/i18n.js'), env);
+  const script = await response.text();
+  assert.match(script, /MutationObserver/);
+  assert.match(script, /सानुकूल शेतकरी सूचना/);
+  assert.match(script, /कस्टम किसान अलर्ट/);
+  assert.match(script, /Records explorer/);
+});
+
 test('blocks a foreign browser origin', async () => {
   const response = await worker.fetch(new Request('https://procureflow.example/api/send-sms', {
     method: 'POST',
