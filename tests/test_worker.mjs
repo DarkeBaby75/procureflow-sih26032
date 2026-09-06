@@ -33,6 +33,17 @@ test('keeps eligibility checkboxes compact and aligned', async () => {
   assert.match(css, /\.check-list label\{[^}]*grid-template-columns:20px minmax\(0,1fr\)/);
 });
 
+test('allows every modal to be cancelled without completing required fields', async () => {
+  const page = await worker.fetch(new Request('https://procureflow.example/'), env);
+  const html = await page.text();
+  assert.match(html, /type="button" data-close-dialog>Cancel<\/button>/);
+  assert.doesNotMatch(html, /value="cancel" aria-label="Close"/);
+  const script = await worker.fetch(new Request('https://procureflow.example/hosted.js'), env);
+  const javascript = await script.text();
+  assert.match(javascript, /window\.addEventListener\('popstate'/);
+  assert.match(javascript, /function openDialog\(dialog\)/);
+});
+
 test('serves complete dynamic Hindi and Marathi translation support', async () => {
   const response = await worker.fetch(new Request('https://procureflow.example/i18n.js'), env);
   const script = await response.text();
