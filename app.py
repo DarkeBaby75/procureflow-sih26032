@@ -31,6 +31,8 @@ def create_app(test_config=None):
         SMTP_APP_PASSWORD=os.getenv("SMTP_APP_PASSWORD", ""),
         SMTP_FROM_NAME=os.getenv("SMTP_FROM_NAME", "ProcureFlow"),
         SMTP_FROM_EMAIL=os.getenv("SMTP_FROM_EMAIL", ""),
+        PUBLIC_SITE_ORIGIN=os.getenv("PUBLIC_SITE_ORIGIN", ""),
+        DEMO_ALERT_RECIPIENT=os.getenv("DEMO_ALERT_RECIPIENT", ""),
         TESTING=False,
     )
     if test_config:
@@ -439,6 +441,35 @@ def create_app(test_config=None):
     def health():
         query_one("SELECT 1")
         return {"status": "ok", "service": "ProcureFlow"}
+
+    @app.after_request
+    def allow_public_demo_alert(response):
+        allowed_origin = app.config["PUBLIC_SITE_ORIGIN"]
+        if request.path == "/api/demo-alert" and request.headers.get("Origin") == allowed_origin:
+            response.headers["Access-Control-Allow-Origin"] = allowed_origin
+            response.headers["Vary"] = "Origin"
+        return response
+
+    @app.post("/api/demo-alert")
+    def public_demo_alert():
+        if not app.config["PUBLIC_SITE_ORIGIN"] or request.headers.get("Origin") != app.config["PUBLIC_SITE_ORIGIN"]:
+            abort(403)
+        recipient = app.config["DEMO_ALERT_RECIPIENT"]
+        if not recipient:
+            return {"ok": False, "message": "Demo recipient is not configured."}, 503
+        now = datetime.now()
+        last_sent = app.extensions.get("public_alert_last_sent")
+        if last_sent and (now - last_sent).total_seconds() < 60:
+            return {"ok": False, "message": "Please wait one minute before sending another alert."}, 429
+        sent, error = send_email(
+            recipient,
+            "ProcureFlow live queue alert",
+            "Your turn is approaching. 6 farmers are ahead of you and the estimated wait is 42 minutes. Please reach Baramati Procurement Centre with your documents.",
+        )
+        if not sent:
+            return {"ok": False, "message": error or "Email delivery failed."}, 502
+        app.extensions["public_alert_last_sent"] = now
+        return {"ok": True, "message": "Live queue alert email sent successfully."}
 
     @app.cli.command("init-db")
     def init_db_command():

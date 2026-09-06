@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+import app as app_module
 from app import create_app
 
 
@@ -34,6 +35,17 @@ def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json["status"] == "ok"
+
+
+def test_public_demo_alert_is_origin_locked_and_rate_limited(app, client, monkeypatch):
+    app.config.update(PUBLIC_SITE_ORIGIN="https://demo.example", DEMO_ALERT_RECIPIENT="recipient@example.com")
+    monkeypatch.setattr(app_module, "send_email", lambda recipient, subject, body: (True, None))
+    assert client.post("/api/demo-alert", headers={"Origin": "https://wrong.example"}).status_code == 403
+    sent = client.post("/api/demo-alert", headers={"Origin": "https://demo.example"})
+    assert sent.status_code == 200
+    assert sent.json["ok"] is True
+    assert sent.headers["Access-Control-Allow-Origin"] == "https://demo.example"
+    assert client.post("/api/demo-alert", headers={"Origin": "https://demo.example"}).status_code == 429
 
 
 def test_farmer_can_login_and_see_schedules(client):
