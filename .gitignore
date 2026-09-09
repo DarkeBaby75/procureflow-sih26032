@@ -5,4 +5,6 @@ __pycache__/
 instance/*.db
 instance/*.db-shm
 instance/*.db-wal
-
+docs/user-manual/pdf-render/
+docs/user-manual/pdf-render-v2/
+procureflow-site.tar.gz
