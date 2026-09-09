@@ -131,8 +131,8 @@ test('serves the installable app and complete support interface', async () => {
   const html = await page.text();
   assert.match(html, /manifest\.webmanifest/);
   assert.match(html, /data-view="accounts"/);
-  assert.match(html, /accounts\.css\?v=18/);
-  assert.match(html, /accounts\.js\?v=18/);
+  assert.match(html, /accounts\.css\?v=19/);
+  assert.match(html, /accounts\.js\?v=19/);
   assert.match(html, /ProcureBot help/);
   assert.match(html, /Live admin chat/);
   assert.match(html, /accept="image\/\*,video\/\*,audio\/\*"/);
@@ -141,8 +141,13 @@ test('serves the installable app and complete support interface', async () => {
   const appManifest = await manifest.json();
   assert.equal(appManifest.display, 'standalone');
   assert.equal(appManifest.orientation, 'portrait-primary');
+  assert.deepEqual(appManifest.icons.filter(icon=>icon.type==='image/png').map(icon=>icon.sizes), ['192x192','512x512','512x512']);
   const mobile = await worker.fetch(new Request('https://procureflow.example/mobile.css'), env);
   assert.match(await mobile.text(), /display-mode:standalone/);
+  const icon = await worker.fetch(new Request('https://procureflow.example/icon-192.png'), env);
+  assert.equal(icon.headers.get('Content-Type'), 'image/png');
+  const app = await worker.fetch(new Request('https://procureflow.example/hosted.js'), env);
+  assert.match(await app.text(), /filter\(\(\[target\]\)=>target!==['"]new-schedule['"]\)/);
 });
 
 test('serves the user manual and chat client behaviors', async () => {

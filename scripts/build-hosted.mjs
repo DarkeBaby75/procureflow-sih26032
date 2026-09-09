@@ -10,7 +10,10 @@ const assets = {};
 
 for (const name of await readdir(sourceDir)) {
   const filename = path.join(sourceDir, name);
-  assets[`/${name === 'index.html' ? '' : name}`] = await readFile(filename, 'utf8');
+  const contents = await readFile(filename);
+  assets[`/${name === 'index.html' ? '' : name}`] = name.endsWith('.png')
+    ? { base64: contents.toString('base64') }
+    : contents.toString('utf8');
 }
 
 await rm(outputDir, { recursive: true, force: true });
