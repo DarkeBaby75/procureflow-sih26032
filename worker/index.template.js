@@ -1,77 +1,42 @@
 const ASSETS = __PROCUREFLOW_ASSETS__;
-const CONTENT_TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.svg': 'image/svg+xml; charset=utf-8',
-};
-let lastSmsAt = 0;
+const CONTENT_TYPES={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml; charset=utf-8','.webmanifest':'application/manifest+json; charset=utf-8'};
+const MAX_MEDIA_BYTES=12*1024*1024; let lastSmsAt=0;
+const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});
+const contentType=path=>CONTENT_TYPES[path.slice(path.lastIndexOf('.'))]||'application/octet-stream';
+const identity=req=>({id:(req.headers.get('X-ProcureFlow-User')||'').slice(0,80),name:(req.headers.get('X-ProcureFlow-Name')||'').slice(0,80),role:(req.headers.get('X-ProcureFlow-Role')||'').toLowerCase()});
+const valid=u=>u.id&&u.name&&['farmer','staff','admin'].includes(u.role);
+const sameOrigin=(req,env)=>{const o=req.headers.get('Origin');return !o||!env.PUBLIC_SITE_ORIGIN||o===env.PUBLIC_SITE_ORIGIN};
 
-const json = (data, status = 200) => new Response(JSON.stringify(data), {
-  status,
-  headers: {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Cache-Control': 'no-store',
-  },
-});
-
-function contentType(pathname) {
-  const dot = pathname.lastIndexOf('.');
-  return CONTENT_TYPES[dot >= 0 ? pathname.slice(dot) : '.html'] || 'application/octet-stream';
+async function sendSms(req,env){
+  const origin=req.headers.get('Origin');if(!origin||origin!==env.PUBLIC_SITE_ORIGIN)return json({message:'Request blocked'},403);
+  const required=['TWILIO_ACCOUNT_SID','TWILIO_AUTH_TOKEN','TWILIO_FROM_NUMBER','TWILIO_TO_NUMBER'];if(required.some(k=>!env[k]))return json({message:'SMS service is not configured'},503);
+  const now=Date.now();if(now-lastSmsAt<60000)return json({message:'Please wait one minute before sending another alert'},429);
+  const form=new URLSearchParams({To:env.TWILIO_TO_NUMBER,From:env.TWILIO_FROM_NUMBER,Body:env.TWILIO_TEMPLATE||'sms_appointment_reminders'});
+  const response=await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(env.TWILIO_ACCOUNT_SID)}/Messages.json`,{method:'POST',headers:{Authorization:`Basic ${btoa(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`)}`,'Content-Type':'application/x-www-form-urlencoded'},body:form.toString()});
+  const result=await response.json();if(!response.ok)return json({message:result.message||'Twilio could not send the alert'},502);lastSmsAt=now;return json({message:'SMS alert queued successfully',status:result.status,sid:result.sid});
 }
-
-async function sendSms(request, env) {
-  const origin = request.headers.get('Origin');
-  if (!origin || origin !== env.PUBLIC_SITE_ORIGIN) return json({ message: 'Request blocked' }, 403);
-
-  const required = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER', 'TWILIO_TO_NUMBER'];
-  if (required.some(key => !env[key])) return json({ message: 'SMS service is not configured' }, 503);
-
-  const now = Date.now();
-  if (now - lastSmsAt < 60_000) return json({ message: 'Please wait one minute before sending another alert' }, 429);
-
-  const form = new URLSearchParams({
-    To: env.TWILIO_TO_NUMBER,
-    From: env.TWILIO_FROM_NUMBER,
-    Body: env.TWILIO_TEMPLATE || 'sms_appointment_reminders',
-  });
-  const authorization = btoa(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`);
-  const response = await fetch(
-    `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(env.TWILIO_ACCOUNT_SID)}/Messages.json`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${authorization}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: form.toString(),
-    },
-  );
-  const result = await response.json();
-  if (!response.ok) return json({ message: result.message || 'Twilio could not send the alert' }, 502);
-
-  lastSmsAt = now;
-  return json({ message: 'SMS alert queued successfully', status: result.status, sid: result.sid });
+async function conversations(req,env){
+  const u=identity(req);if(!valid(u))return json({message:'Sign in required'},401);
+  if(u.role==='admin'){const r=await env.DB.prepare(`SELECT c.*, (SELECT body FROM chat_messages m WHERE m.conversation_id=c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message, (SELECT COUNT(*) FROM chat_messages m WHERE m.conversation_id=c.id AND m.sender_role!='admin' AND m.seen_at IS NULL AND m.deleted_at IS NULL) AS unread FROM chat_conversations c ORDER BY c.updated_at DESC`).all();return json({conversations:r.results||[]})}
+  const id=`support-${u.id.replace(/[^a-z0-9_-]/gi,'-')}`;await env.DB.prepare(`INSERT INTO chat_conversations (id,participant_id,participant_name,participant_role,created_at,updated_at) VALUES (?,?,?,?,datetime('now'),datetime('now')) ON CONFLICT(id) DO UPDATE SET participant_name=excluded.participant_name,participant_role=excluded.participant_role`).bind(id,u.id,u.name,u.role).run();
+  return json({conversations:[await env.DB.prepare('SELECT * FROM chat_conversations WHERE id=?').bind(id).first()]});
 }
+async function listMessages(req,env,url){
+  const u=identity(req),cid=(url.searchParams.get('conversation_id')||'').slice(0,120);if(!valid(u)||!cid)return json({message:'Invalid request'},400);
+  const c=await env.DB.prepare('SELECT * FROM chat_conversations WHERE id=?').bind(cid).first();if(!c||(u.role!=='admin'&&c.participant_id!==u.id))return json({message:'Conversation not found'},404);
+  const r=await env.DB.prepare('SELECT * FROM chat_messages WHERE conversation_id=? ORDER BY created_at ASC LIMIT 300').bind(cid).all();return json({conversation:c,messages:r.results||[]});
+}
+async function createMessage(req,env){
+  const u=identity(req);if(!valid(u))return json({message:'Sign in required'},401);const form=await req.formData(),cid=String(form.get('conversation_id')||'').slice(0,120),body=String(form.get('body')||'').trim().slice(0,2000),file=form.get('attachment');
+  if(!cid||(!body&&!(file instanceof File&&file.size)))return json({message:'Write a message or add a file'},400);let c=await env.DB.prepare('SELECT * FROM chat_conversations WHERE id=?').bind(cid).first();
+  if(!c&&u.role!=='admin'){await env.DB.prepare(`INSERT INTO chat_conversations (id,participant_id,participant_name,participant_role,created_at,updated_at) VALUES (?,?,?,?,datetime('now'),datetime('now'))`).bind(cid,u.id,u.name,u.role).run();c={participant_id:u.id}}
+  if(!c||(u.role!=='admin'&&c.participant_id!==u.id))return json({message:'Conversation not found'},404);
+  let mediaKey=null,mediaName=null,mediaType=null;if(file instanceof File&&file.size){if(file.size>MAX_MEDIA_BYTES)return json({message:'Attachment must be 12 MB or smaller'},413);if(!/^(image|video|audio)\//.test(file.type))return json({message:'Only photos, videos and audio are supported'},415);mediaKey=`${cid}/${crypto.randomUUID()}`;mediaName=file.name.slice(0,160);mediaType=file.type;await env.CHAT_MEDIA.put(mediaKey,file.stream(),{httpMetadata:{contentType:mediaType},customMetadata:{name:mediaName}})}
+  const id=crypto.randomUUID();await env.DB.prepare(`INSERT INTO chat_messages (id,conversation_id,sender_id,sender_name,sender_role,body,media_key,media_name,media_type,created_at) VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))`).bind(id,cid,u.id,u.name,u.role,body,mediaKey,mediaName,mediaType).run();await env.DB.prepare(`UPDATE chat_conversations SET updated_at=datetime('now') WHERE id=?`).bind(cid).run();return json({message:await env.DB.prepare('SELECT * FROM chat_messages WHERE id=?').bind(id).first()},201);
+}
+async function updateMessage(req,env,id){const u=identity(req);if(!valid(u))return json({message:'Sign in required'},401);const row=await env.DB.prepare('SELECT * FROM chat_messages WHERE id=?').bind(id).first();if(!row)return json({message:'Message not found'},404);if(row.sender_id!==u.id)return json({message:'You can edit only your own messages'},403);const p=await req.json(),body=String(p.body||'').trim().slice(0,2000);if(!body)return json({message:'Message cannot be empty'},400);await env.DB.prepare(`UPDATE chat_messages SET body=?,edited_at=datetime('now') WHERE id=?`).bind(body,id).run();return json({message:'Message updated'})}
+async function deleteMessage(req,env,id){const u=identity(req);if(!valid(u))return json({message:'Sign in required'},401);const row=await env.DB.prepare('SELECT * FROM chat_messages WHERE id=?').bind(id).first();if(!row)return json({message:'Message not found'},404);if(u.role!=='admin'&&row.sender_id!==u.id)return json({message:'You cannot delete this message'},403);if(row.media_key)await env.CHAT_MEDIA.delete(row.media_key);await env.DB.prepare(`UPDATE chat_messages SET body='',media_key=NULL,media_name=NULL,media_type=NULL,deleted_at=datetime('now') WHERE id=?`).bind(id).run();return json({message:'Message deleted'})}
+async function markRead(req,env){const u=identity(req);if(!valid(u))return json({message:'Sign in required'},401);const p=await req.json(),cid=String(p.conversation_id||'').slice(0,120),c=await env.DB.prepare('SELECT * FROM chat_conversations WHERE id=?').bind(cid).first();if(!c||(u.role!=='admin'&&c.participant_id!==u.id))return json({message:'Conversation not found'},404);await env.DB.prepare(`UPDATE chat_messages SET seen_at=datetime('now') WHERE conversation_id=? AND sender_role!=? AND seen_at IS NULL`).bind(cid,u.role).run();return json({message:'Read receipt updated'})}
+async function media(req,env,key){const u=identity(req);if(!valid(u))return new Response('Sign in required',{status:401});const m=await env.DB.prepare('SELECT conversation_id,media_type FROM chat_messages WHERE media_key=? AND deleted_at IS NULL').bind(key).first();if(!m)return new Response('Not found',{status:404});const c=await env.DB.prepare('SELECT participant_id FROM chat_conversations WHERE id=?').bind(m.conversation_id).first();if(u.role!=='admin'&&c?.participant_id!==u.id)return new Response('Forbidden',{status:403});const o=await env.CHAT_MEDIA.get(key);if(!o)return new Response('Not found',{status:404});return new Response(o.body,{headers:{'Content-Type':m.media_type||'application/octet-stream','Cache-Control':'private, max-age=300','X-Content-Type-Options':'nosniff'}})}
 
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-    if (url.pathname === '/health') return json({ status: 'ok', sms: 'hosted' });
-    if (url.pathname === '/api/send-sms') {
-      if (request.method !== 'POST') return json({ message: 'Method not allowed' }, 405);
-      return sendSms(request, env);
-    }
-
-    if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method not allowed', { status: 405 });
-    const key = url.pathname === '/' ? '/' : url.pathname;
-    const body = ASSETS[key];
-    if (body === undefined) return new Response('Not found', { status: 404 });
-    return new Response(request.method === 'HEAD' ? null : body, {
-      headers: {
-        'Content-Type': contentType(key),
-        'Cache-Control': 'no-cache',
-      },
-    });
-  },
-};
+export default {async fetch(req,env){const url=new URL(req.url),path=url.pathname;if(path==='/health')return json({status:'ok',sms:'hosted',chat:env.DB&&env.CHAT_MEDIA?'ready':'not-configured'});if(path.startsWith('/api/')&&!sameOrigin(req,env))return json({message:'Request blocked'},403);if(path==='/api/send-sms')return req.method==='POST'?sendSms(req,env):json({message:'Method not allowed'},405);if(path==='/api/chat/conversations'&&req.method==='GET')return conversations(req,env);if(path==='/api/chat/messages'&&req.method==='GET')return listMessages(req,env,url);if(path==='/api/chat/messages'&&req.method==='POST')return createMessage(req,env);const mm=path.match(/^\/api\/chat\/messages\/([^/]+)$/);if(mm&&req.method==='PATCH')return updateMessage(req,env,decodeURIComponent(mm[1]));if(mm&&req.method==='DELETE')return deleteMessage(req,env,decodeURIComponent(mm[1]));if(path==='/api/chat/read'&&req.method==='POST')return markRead(req,env);const med=path.match(/^\/api\/chat\/media\/(.+)$/);if(med&&req.method==='GET')return media(req,env,decodeURIComponent(med[1]));if(path.startsWith('/api/'))return json({message:'Not found'},404);if(!['GET','HEAD'].includes(req.method))return new Response('Method not allowed',{status:405});const key=path==='/'?'/':path,body=ASSETS[key];if(body===undefined)return new Response('Not found',{status:404});return new Response(req.method==='HEAD'?null:body,{headers:{'Content-Type':contentType(key),'Cache-Control':key==='/sw.js'?'no-cache':'public, max-age=300','X-Content-Type-Options':'nosniff'}})}};

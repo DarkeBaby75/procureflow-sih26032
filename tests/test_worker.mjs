@@ -25,6 +25,29 @@ test('serves the custom alert composer', async () => {
   assert.match(await response.text(), /custom-alert-message/);
 });
 
+test('serves the installable app and complete support interface', async () => {
+  const page = await worker.fetch(new Request('https://procureflow.example/'), env);
+  const html = await page.text();
+  assert.match(html, /manifest\.webmanifest/);
+  assert.match(html, /ProcureBot help/);
+  assert.match(html, /Live admin chat/);
+  assert.match(html, /accept="image\/\*,video\/\*,audio\/\*"/);
+  const manifest = await worker.fetch(new Request('https://procureflow.example/manifest.webmanifest'), env);
+  assert.equal(manifest.headers.get('Content-Type'), 'application/manifest+json; charset=utf-8');
+  assert.equal((await manifest.json()).display, 'standalone');
+});
+
+test('serves the user manual and chat client behaviors', async () => {
+  const manual = await worker.fetch(new Request('https://procureflow.example/manual.html'), env);
+  assert.match(await manual.text(), /Seen ✓✓/);
+  const script = await worker.fetch(new Request('https://procureflow.example/chat.js'), env);
+  const javascript = await script.text();
+  assert.match(javascript, /MediaRecorder/);
+  assert.match(javascript, /\/api\/chat\/read/);
+  assert.match(javascript, /data-delete/);
+  assert.match(javascript, /beforeinstallprompt/);
+});
+
 test('keeps eligibility checkboxes compact and aligned', async () => {
   const response = await worker.fetch(new Request('https://procureflow.example/app.css'), env);
   assert.equal(response.status, 200);
