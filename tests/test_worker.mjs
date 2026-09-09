@@ -40,6 +40,31 @@ class FakeD1 {
   }
 }
 
+class AccountD1 {
+  constructor() { this.accounts = new Map(); this.sessions = new Map(); }
+  prepare(sql) {
+    const db=this;
+    return { values:[], bind(...values){this.values=values;return this;},
+      async run(){const v=this.values;
+        if(sql.includes('INSERT INTO auth_sessions')) db.sessions.set(v[0],{id:v[1],name:v[2],email:v[3],role:v[4]});
+        else if(sql.includes('INSERT INTO user_accounts')) db.accounts.set(v[0],{id:v[0],role:v[1],full_name:v[2],email:v[3],phone:v[4],location:v[5],status:v[6],password_salt:v[7],password_hash:v[8],created_at:'2026-09-10 12:00:00',updated_at:'2026-09-10 12:00:00'});
+        else if(sql.includes('UPDATE user_accounts SET')) Object.assign(db.accounts.get(v[8]),{role:v[0],full_name:v[1],email:v[2],phone:v[3],location:v[4],status:v[5],password_salt:v[6],password_hash:v[7],updated_at:'2026-09-10 12:05:00'});
+        else if(sql.includes('DELETE FROM user_accounts')) db.accounts.delete(v[0]);
+        else if(sql.includes('DELETE FROM auth_sessions WHERE user_id')) for(const [token,session] of db.sessions) if(session.id===v[0])db.sessions.delete(token);
+        else if(sql.includes('DELETE FROM auth_sessions WHERE token')) db.sessions.delete(v[0]);
+        return {success:true};
+      },
+      async first(){const v=this.values;
+        if(sql.includes('FROM auth_sessions WHERE token')) return db.sessions.get(v[0])||null;
+        if(sql.includes("FROM user_accounts WHERE email=? AND status='active'")) return [...db.accounts.values()].find(account=>account.email===v[0]&&account.status==='active')||null;
+        if(sql.includes('FROM user_accounts WHERE id=?')) return db.accounts.get(v[0])||null;
+        return null;
+      },
+      async all(){let rows=[...db.accounts.values()];if(sql.includes('WHERE role=?'))rows=rows.filter(account=>account.role===this.values[0]);return {results:rows};}
+    };
+  }
+}
+
 test('serves the ProcureFlow application', async () => {
   const response = await worker.fetch(new Request('https://procureflow.example/'), env);
   assert.equal(response.status, 200);
@@ -47,6 +72,24 @@ test('serves the ProcureFlow application', async () => {
   const html = await response.text();
   assert.match(html, /ProcureFlow/);
   assert.doesNotMatch(html, /voice-button|🔊/);
+});
+
+test('admin creates, edits and deletes credentials and the new farmer can sign in', async () => {
+  const accountEnv={...env,DB:new AccountD1()};
+  const origin={Origin:env.PUBLIC_SITE_ORIGIN,'Content-Type':'application/json'};
+  const adminLogin=await worker.fetch(new Request('https://procureflow.example/api/auth/login',{method:'POST',headers:origin,body:JSON.stringify({email:'admin@demo.in',password:'Admin@123'})}),accountEnv);
+  assert.equal(adminLogin.status,200);const adminToken=(await adminLogin.json()).token;
+  const adminHeaders={...origin,Authorization:`Bearer ${adminToken}`};
+  const created=await worker.fetch(new Request('https://procureflow.example/api/accounts',{method:'POST',headers:adminHeaders,body:JSON.stringify({role:'farmer',full_name:'Kavita Jadhav',email:'kavita@example.in',phone:'+919876543210',location:'Shirur'})}),accountEnv);
+  assert.equal(created.status,201);const createdBody=await created.json();assert.ok(createdBody.temporary_password.length>=8);
+  const listed=await worker.fetch(new Request('https://procureflow.example/api/accounts?role=farmer',{headers:adminHeaders}),accountEnv);
+  assert.equal((await listed.json()).accounts[0].full_name,'Kavita Jadhav');
+  const updated=await worker.fetch(new Request(`https://procureflow.example/api/accounts/${createdBody.account.id}`,{method:'PATCH',headers:adminHeaders,body:JSON.stringify({full_name:'Kavita Patil',status:'active'})}),accountEnv);
+  assert.equal((await updated.json()).account.full_name,'Kavita Patil');
+  const farmerLogin=await worker.fetch(new Request('https://procureflow.example/api/auth/login',{method:'POST',headers:origin,body:JSON.stringify({email:'kavita@example.in',password:createdBody.temporary_password})}),accountEnv);
+  assert.equal(farmerLogin.status,200);assert.equal((await farmerLogin.json()).user.role,'farmer');
+  const removed=await worker.fetch(new Request(`https://procureflow.example/api/accounts/${createdBody.account.id}`,{method:'DELETE',headers:adminHeaders}),accountEnv);
+  assert.equal(removed.status,200);assert.equal(accountEnv.DB.accounts.size,0);
 });
 
 test('admin receives named conversations and farmer receives a seen reply', async () => {
@@ -87,12 +130,19 @@ test('serves the installable app and complete support interface', async () => {
   const page = await worker.fetch(new Request('https://procureflow.example/'), env);
   const html = await page.text();
   assert.match(html, /manifest\.webmanifest/);
+  assert.match(html, /data-view="accounts"/);
+  assert.match(html, /accounts\.css\?v=18/);
+  assert.match(html, /accounts\.js\?v=18/);
   assert.match(html, /ProcureBot help/);
   assert.match(html, /Live admin chat/);
   assert.match(html, /accept="image\/\*,video\/\*,audio\/\*"/);
   const manifest = await worker.fetch(new Request('https://procureflow.example/manifest.webmanifest'), env);
   assert.equal(manifest.headers.get('Content-Type'), 'application/manifest+json; charset=utf-8');
-  assert.equal((await manifest.json()).display, 'standalone');
+  const appManifest = await manifest.json();
+  assert.equal(appManifest.display, 'standalone');
+  assert.equal(appManifest.orientation, 'portrait-primary');
+  const mobile = await worker.fetch(new Request('https://procureflow.example/mobile.css'), env);
+  assert.match(await mobile.text(), /display-mode:standalone/);
 });
 
 test('serves the user manual and chat client behaviors', async () => {

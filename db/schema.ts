@@ -24,3 +24,27 @@ export const chatMessages = sqliteTable('chat_messages', {
   deletedAt: text('deleted_at'),
   seenAt: text('seen_at'),
 }, table => [index('idx_chat_messages_conversation').on(table.conversationId, table.createdAt)]);
+
+export const userAccounts = sqliteTable('user_accounts', {
+  id: text('id').primaryKey(),
+  role: text('role').notNull(),
+  fullName: text('full_name').notNull(),
+  email: text('email').notNull().unique(),
+  phone: text('phone').notNull(),
+  location: text('location').notNull(),
+  status: text('status').notNull(),
+  passwordSalt: text('password_salt').notNull(),
+  passwordHash: text('password_hash').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, table => [index('idx_user_accounts_role_status').on(table.role, table.status)]);
+
+export const authSessions = sqliteTable('auth_sessions', {
+  token: text('token').primaryKey(),
+  userId: text('user_id').notNull(),
+  userName: text('user_name').notNull(),
+  userEmail: text('user_email').notNull(),
+  role: text('role').notNull(),
+  expiresAt: text('expires_at').notNull(),
+  createdAt: text('created_at').notNull(),
+}, table => [index('idx_auth_sessions_expiry').on(table.expiresAt)]);
