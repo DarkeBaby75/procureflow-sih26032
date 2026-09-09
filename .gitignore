@@ -8,3 +8,4 @@ instance/*.db-wal
 docs/user-manual/pdf-render/
 docs/user-manual/pdf-render-v2/
 procureflow-site*.tar.gz
+android-app/build/
