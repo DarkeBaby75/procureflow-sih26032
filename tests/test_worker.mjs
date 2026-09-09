@@ -28,6 +28,7 @@ class FakeD1 {
       async first() {
         const id=this.values[0];
         if (sql.includes('FROM chat_conversations')) return db.conversations.get(id)||null;
+        if (sql.includes('WHERE media_key=')) return [...db.messages.values()].find(message=>message.media_key===id&&!message.deleted_at)||null;
         if (sql.includes('FROM chat_messages')) return db.messages.get(id)||null;
         return null;
       },
@@ -45,6 +46,34 @@ test('serves the ProcureFlow application', async () => {
   const html = await response.text();
   assert.match(html, /ProcureFlow/);
   assert.doesNotMatch(html, /voice-button|🔊/);
+});
+
+test('admin receives named conversations and farmer receives a seen reply', async () => {
+  const db = new FakeD1();
+  const r2Objects = new Map();
+  const chatEnv = { ...env, DB:db, CHAT_MEDIA:{
+    put:async(key,body,options)=>r2Objects.set(key,{ body, options }),
+    get:async key=>r2Objects.get(key)||null,
+    delete:async key=>r2Objects.delete(key),
+  }};
+  const farmer = { Origin:env.PUBLIC_SITE_ORIGIN, 'X-ProcureFlow-User':'farmer-ramesh', 'X-ProcureFlow-Name':'Ramesh Patil', 'X-ProcureFlow-Role':'farmer' };
+  const admin = { Origin:env.PUBLIC_SITE_ORIGIN, 'X-ProcureFlow-User':'admin-demo', 'X-ProcureFlow-Name':'System Administrator', 'X-ProcureFlow-Role':'admin' };
+  const opened = await worker.fetch(new Request('https://procureflow.example/api/chat/conversations', { headers:farmer }), chatEnv);
+  const cid = (await opened.json()).conversations[0].id;
+  const farmerForm = new FormData(); farmerForm.set('conversation_id',cid); farmerForm.set('body','My queue is delayed');
+  await worker.fetch(new Request('https://procureflow.example/api/chat/messages',{method:'POST',headers:farmer,body:farmerForm}),chatEnv);
+  const inbox = await worker.fetch(new Request('https://procureflow.example/api/chat/conversations',{headers:admin}),chatEnv);
+  assert.equal((await inbox.json()).conversations[0].participant_name,'Ramesh Patil');
+  await worker.fetch(new Request('https://procureflow.example/api/chat/read',{method:'POST',headers:{...admin,'Content-Type':'application/json'},body:JSON.stringify({conversation_id:cid})}),chatEnv);
+  assert.ok([...db.messages.values()][0].seen_at);
+  const reply = new FormData(); reply.set('conversation_id',cid); reply.set('body','Please use Baramati centre');
+  const replied = await worker.fetch(new Request('https://procureflow.example/api/chat/messages',{method:'POST',headers:admin,body:reply}),chatEnv);
+  assert.equal(replied.status,201);
+  const farmerView = await worker.fetch(new Request(`https://procureflow.example/api/chat/messages?conversation_id=${cid}`,{headers:farmer}),chatEnv);
+  assert.equal((await farmerView.json()).messages.length,2);
+  const stranger = {...farmer,'X-ProcureFlow-User':'farmer-other','X-ProcureFlow-Name':'Other Farmer'};
+  const forbidden = await worker.fetch(new Request(`https://procureflow.example/api/chat/messages?conversation_id=${cid}`,{headers:stranger}),chatEnv);
+  assert.equal(forbidden.status,404);
 });
 
 test('serves the custom alert composer', async () => {
