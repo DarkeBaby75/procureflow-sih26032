@@ -2,7 +2,7 @@ const ASSETS = __PROCUREFLOW_ASSETS__;
 const CONTENT_TYPES={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml; charset=utf-8','.webmanifest':'application/manifest+json; charset=utf-8'};
 const MAX_MEDIA_BYTES=12*1024*1024; let lastSmsAt=0;
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});
-const contentType=path=>CONTENT_TYPES[path.slice(path.lastIndexOf('.'))]||'application/octet-stream';
+const contentType=path=>{const index=path.lastIndexOf('.');return CONTENT_TYPES[index>=0?path.slice(index):'.html']||'application/octet-stream'};
 const identity=req=>({id:(req.headers.get('X-ProcureFlow-User')||'').slice(0,80),name:(req.headers.get('X-ProcureFlow-Name')||'').slice(0,80),role:(req.headers.get('X-ProcureFlow-Role')||'').toLowerCase()});
 const valid=u=>u.id&&u.name&&['farmer','staff','admin'].includes(u.role);
 const sameOrigin=(req,env)=>{const o=req.headers.get('Origin');return !o||!env.PUBLIC_SITE_ORIGIN||o===env.PUBLIC_SITE_ORIGIN};

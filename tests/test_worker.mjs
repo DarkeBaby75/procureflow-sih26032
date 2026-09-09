@@ -43,6 +43,7 @@ class FakeD1 {
 test('serves the ProcureFlow application', async () => {
   const response = await worker.fetch(new Request('https://procureflow.example/'), env);
   assert.equal(response.status, 200);
+  assert.equal(response.headers.get('Content-Type'), 'text/html; charset=utf-8');
   const html = await response.text();
   assert.match(html, /ProcureFlow/);
   assert.doesNotMatch(html, /voice-button|🔊/);
