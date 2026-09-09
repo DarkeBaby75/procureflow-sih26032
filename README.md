@@ -2,7 +2,7 @@
 
 ProcureFlow is a Python/Flask application with a hosted PWA edition for farmer procurement scheduling, rule-based eligibility checks, token booking, queue tracking, centre operations, automated updates and direct support.
 
-**Live demo:** https://procureflow-sih26032.abbaszaga04.chatgpt.site
+**Live demo:** https://procureflow-live-sih26032.alexusa273.chatgpt.site
 
 ## Included workflows
 
