@@ -11,6 +11,34 @@ const env = {
   TWILIO_TEMPLATE: 'sms_appointment_reminders',
 };
 
+class FakeD1 {
+  constructor() { this.conversations = new Map(); this.messages = new Map(); }
+  prepare(sql) {
+    const db = this;
+    return { values: [], bind(...values) { this.values = values; return this; },
+      async run() {
+        const v = this.values;
+        if (sql.includes('INSERT INTO chat_conversations')) db.conversations.set(v[0], { id:v[0], participant_id:v[1], participant_name:v[2], participant_role:v[3], created_at:'2026-09-10 10:00:00', updated_at:'2026-09-10 10:00:00' });
+        else if (sql.includes('INSERT INTO chat_messages')) db.messages.set(v[0], { id:v[0], conversation_id:v[1], sender_id:v[2], sender_name:v[3], sender_role:v[4], body:v[5], media_key:v[6], media_name:v[7], media_type:v[8], created_at:'2026-09-10 10:01:00', edited_at:null, deleted_at:null, seen_at:null });
+        else if (sql.includes('SET body=?,edited_at')) Object.assign(db.messages.get(v[1]), { body:v[0], edited_at:'2026-09-10 10:02:00' });
+        else if (sql.includes("SET body='',media_key=NULL")) Object.assign(db.messages.get(v[0]), { body:'', media_key:null, deleted_at:'2026-09-10 10:03:00' });
+        else if (sql.includes('SET seen_at=')) for (const m of db.messages.values()) if (m.conversation_id===v[0] && m.sender_role!==v[1]) m.seen_at='2026-09-10 10:02:00';
+        return { success:true };
+      },
+      async first() {
+        const id=this.values[0];
+        if (sql.includes('FROM chat_conversations')) return db.conversations.get(id)||null;
+        if (sql.includes('FROM chat_messages')) return db.messages.get(id)||null;
+        return null;
+      },
+      async all() {
+        if (sql.includes('FROM chat_messages WHERE conversation_id')) return { results:[...db.messages.values()].filter(m=>m.conversation_id===this.values[0]) };
+        return { results:[...db.conversations.values()] };
+      }
+    };
+  }
+}
+
 test('serves the ProcureFlow application', async () => {
   const response = await worker.fetch(new Request('https://procureflow.example/'), env);
   assert.equal(response.status, 200);
@@ -46,6 +74,23 @@ test('serves the user manual and chat client behaviors', async () => {
   assert.match(javascript, /\/api\/chat\/read/);
   assert.match(javascript, /data-delete/);
   assert.match(javascript, /beforeinstallprompt/);
+});
+
+test('persists, edits, reads and deletes a support message', async () => {
+  const chatEnv = { ...env, DB:new FakeD1(), CHAT_MEDIA:{ put:async()=>{}, get:async()=>null, delete:async()=>{} } };
+  const identity = { Origin:env.PUBLIC_SITE_ORIGIN, 'X-ProcureFlow-User':'farmer-demo', 'X-ProcureFlow-Name':'Ramesh Patil', 'X-ProcureFlow-Role':'farmer' };
+  const opened = await worker.fetch(new Request('https://procureflow.example/api/chat/conversations', { headers:identity }), chatEnv);
+  const conversation = (await opened.json()).conversations[0];
+  const form = new FormData(); form.set('conversation_id', conversation.id); form.set('body', 'Please help with my token');
+  const sent = await worker.fetch(new Request('https://procureflow.example/api/chat/messages', { method:'POST', headers:identity, body:form }), chatEnv);
+  assert.equal(sent.status, 201); const message = (await sent.json()).message;
+  const edited = await worker.fetch(new Request(`https://procureflow.example/api/chat/messages/${message.id}`, { method:'PATCH', headers:{...identity,'Content-Type':'application/json'}, body:JSON.stringify({body:'Please help with token PF-001'}) }), chatEnv);
+  assert.equal(edited.status, 200);
+  const listed = await worker.fetch(new Request(`https://procureflow.example/api/chat/messages?conversation_id=${conversation.id}`, { headers:identity }), chatEnv);
+  assert.equal((await listed.json()).messages[0].body, 'Please help with token PF-001');
+  const removed = await worker.fetch(new Request(`https://procureflow.example/api/chat/messages/${message.id}`, { method:'DELETE', headers:identity }), chatEnv);
+  assert.equal(removed.status, 200);
+  assert.ok(chatEnv.DB.messages.get(message.id).deleted_at);
 });
 
 test('keeps eligibility checkboxes compact and aligned', async () => {
